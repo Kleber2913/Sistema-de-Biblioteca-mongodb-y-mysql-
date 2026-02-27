@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema de Biblioteca</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+    min-height: 100vh;
+    margin: 0;
+    padding: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+.container {
+    background: rgba(255,255,255,0.98);
+    padding: 40px;
+    width: 100%;
+    max-width: 560px;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+h2 {
+    text-align: center;
+    color: #1e3c72;
+    margin-bottom: 24px;
+    font-size: 1.8rem;
+}
+.form-group { margin-bottom: 16px; }
+label {
+    display: block;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+}
+input {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 2px solid #e2e8f0;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+input:focus {
+    outline: none;
+    border-color: #6366f1;
+}
+button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+button:hover { transform: translateY(-1px); }
+button:active { transform: translateY(0); }
+.btn-guardar {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    width: 100%;
+    font-size: 1rem;
+}
+.btn-guardar:hover { box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+.btn-cancelar {
+    background: #94a3b8;
+    color: white;
+    margin-top: 8px;
+    width: 100%;
+    display: none;
+}
+.btn-cancelar.show { display: block; }
+h3 {
+    color: #1e3c72;
+    margin-top: 32px;
+    margin-bottom: 16px;
+}
+.libro-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    border-left: 4px solid #6366f1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.libro-info { flex: 1; min-width: 180px; }
+.libro-info strong { color: #1e293b; font-size: 1.1rem; }
+.libro-info span { color: #64748b; font-size: 0.9rem; }
+.libro-actions { display: flex; gap: 8px; }
+.btn-edit {
+    background: #10b981;
+    color: white;
+    padding: 8px 16px;
+}
+.btn-delete {
+    background: #ef4444;
+    color: white;
+    padding: 8px 16px;
+}
+#listaLibros:empty::after {
+    content: "No hay libros. Añade el primero.";
+    display: block;
+    color: #94a3b8;
+    font-style: italic;
+    padding: 20px;
+}
+.error-msg {
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    display: none;
+}
+.error-msg.show { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h2>📚 Sistema de Biblioteca</h2>
+    <div id="errorMsg" class="error-msg"></div>
+
+    <input type="hidden" id="libroId">
+    <div class="form-group">
+        <label for="titulo">Título</label>
+        <input type="text" id="titulo" placeholder="Ej: Cien años de soledad" maxlength="150">
+    </div>
+    <div class="form-group">
+        <label for="autor">Autor</label>
+        <input type="text" id="autor" placeholder="Ej: Gabriel García Márquez" maxlength="150">
+    </div>
+    <div class="form-group">
+        <label for="anio">Año</label>
+        <input type="number" id="anio" placeholder="Ej: 1967" min="1000" max="2100">
+    </div>
+    <button class="btn-guardar" onclick="guardarLibro()">Guardar libro</button>
+    <button class="btn-cancelar" id="btnCancelar" onclick="cancelarEdicion()">Cancelar edición</button>
+
+    <h3>Lista de libros</h3>
+    <div id="listaLibros"></div>
+</div>
+
+<script>
+const api = '/api/libros';
+
+document.addEventListener("DOMContentLoaded", () => {
+    cargarLibros();
+});
+
+function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+function cargarLibros() {
+    fetch(api)
+        .then(res => {
+            if (!res.ok) throw new Error('Error al cargar los libros');
+            return res.json();
+        })
+        .then(data => {
+            const lista = document.getElementById("listaLibros");
+            lista.innerHTML = "";
+            (data || []).forEach(libro => {
+                const card = document.createElement('div');
+                card.className = 'libro-card';
+                card.dataset.id = libro.id;
+                card.dataset.titulo = libro.titulo || '';
+                card.dataset.autor = libro.autor || '';
+                card.dataset.anio = libro.anio || '';
+                card.innerHTML = `
+                    <div class="libro-info">
+                        <strong>${escapeHtml(libro.titulo)}</strong><br>
+                        <span>${escapeHtml(libro.autor)} · ${libro.anio}</span>
+                    </div>
+                    <div class="libro-actions">
+                        <button class="btn-edit" onclick="editarLibro(this)">Editar</button>
+                        <button class="btn-delete" onclick="eliminarLibro(${libro.id})">Eliminar</button>
+                    </div>
+                `;
+                lista.appendChild(card);
+            });
+        })
+        .catch(err => showError(err.message || 'No se pudo conectar con el servidor. ¿Está Spring Boot en ejecución?'));
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function editarLibro(btn) {
+    const card = btn.closest('.libro-card');
+    document.getElementById('libroId').value = card.dataset.id;
+    document.getElementById('titulo').value = card.dataset.titulo;
+    document.getElementById('autor').value = card.dataset.autor;
+    document.getElementById('anio').value = card.dataset.anio;
+    document.getElementById('btnCancelar').classList.add('show');
+}
+
+function cancelarEdicion() {
+    document.getElementById('libroId').value = '';
+    document.getElementById('titulo').value = '';
+    document.getElementById('autor').value = '';
+    document.getElementById('anio').value = '';
+    document.getElementById('btnCancelar').classList.remove('show');
+}
+
+const MAX_TITULO = 150;
+const MAX_AUTOR = 150;
+const ANIO_MIN = 1000;
+const ANIO_MAX = 2100;
+
+function guardarLibro() {
+    const id = document.getElementById('libroId').value;
+    const titulo = document.getElementById('titulo').value.trim();
+    const autor = document.getElementById('autor').value.trim();
+    const anioVal = document.getElementById('anio').value;
+
+    if (!titulo || !autor) {
+        showError('Completa título y autor.');
+        return;
+    }
+    if (titulo.length > MAX_TITULO) {
+        showError(`El título no puede superar ${MAX_TITULO} caracteres.`);
+        return;
+    }
+    if (autor.length > MAX_AUTOR) {
+        showError(`El autor no puede superar ${MAX_AUTOR} caracteres.`);
+        return;
+    }
+    if (!anioVal || isNaN(parseInt(anioVal, 10))) {
+        showError('Introduce un año válido.');
+        return;
+    }
+    const anio = parseInt(anioVal, 10);
+    if (anio < ANIO_MIN || anio > ANIO_MAX) {
+        showError(`El año debe estar entre ${ANIO_MIN} y ${ANIO_MAX}.`);
+        return;
+    }
+
+    const libro = { titulo, autor, anio };
+
+    const opts = {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(libro)
+    };
+    const url = id ? `${api}/${id}` : api;
+
+    fetch(url, opts)
+        .then(res => {
+            if (!res.ok) throw new Error('Error al guardar');
+            return res.json();
+        })
+        .then(() => {
+            cancelarEdicion();
+            cargarLibros();
+        })
+        .catch(err => showError(err.message || 'Error al guardar el libro.'));
+}
+
+function eliminarLibro(id) {
+    if (!confirm('¿Eliminar este libro?')) return;
+    fetch(`${api}/${id}`, { method: 'DELETE' })
+        .then(res => {
+            if (!res.ok) throw new Error('Error al eliminar');
+            cargarLibros();
+        })
+        .catch(err => showError(err.message || 'Error al eliminar.'));
+}
+</script>
+</body>
+</html>
